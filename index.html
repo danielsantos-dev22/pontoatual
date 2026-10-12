@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14213d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ponto">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Ponto</title>
+<style>
+:root{
+  --bg:#f4f5f8; --card:#ffffff; --ink:#14213d; --mute:#5d6783; --line:#dde1ea;
+  --accent:#f2a900; --accent-ink:#1a1400; --pos:#17803d; --neg:#c4302b; --ring:#e3e7f0;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0e1424; --card:#172038; --ink:#eef1f8; --mute:#9aa5c0; --line:#27324e;
+         --pos:#4cc58a; --neg:#ff7a72; --ring:#26314d; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px);
+}
+[hidden]{display:none!important}
+button,input,textarea{font:inherit;color:inherit}
+h2{font-size:1rem;margin:28px 0 8px;font-weight:650}
+.wrap{max-width:480px;margin:0 auto;padding:16px 18px calc(96px + env(safe-area-inset-bottom,0px))}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.mute{color:var(--mute)}
+
+/* Botões e campos */
+.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:650;background:var(--ink);color:var(--bg);cursor:pointer;width:100%}
+.btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.small{width:auto;padding:9px 14px;font-size:.92rem}
+.ghost{background:none;border:0;color:var(--mute);padding:8px 10px;cursor:pointer;font-size:1rem}
+input[type=text],input[type=email],input[type=password],input[type=time],input[type=number],textarea{
+  width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);
+}
+input:focus-visible,button:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+label.f{display:block;margin:14px 0 6px;font-weight:600}
+.hint{font-size:.88rem;color:var(--mute);margin:6px 0 0}
+.err{color:var(--neg);min-height:1.4em;margin:10px 0 0;font-size:.95rem}
+
+/* Login / configuração inicial */
+.center{max-width:420px;margin:0 auto;padding:48px 22px}
+.center h1{font-size:2rem;margin:0 0 4px;letter-spacing:-.02em}
+.center .row{display:flex;gap:10px;margin-top:14px}
+.center code{background:var(--card);padding:2px 6px;border-radius:6px}
+
+/* Hoje */
+.clockwrap{text-align:center;padding-top:8px}
+.date{color:var(--mute);text-transform:capitalize}
+.clock{font:600 3.1rem/1.1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.ringbox{position:relative;width:min(78vw,300px);aspect-ratio:1;margin:18px auto 8px}
+.ringbox svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.track,.prog{fill:none;stroke-width:9;stroke-linecap:round}
+.track{stroke:var(--ring)}
+.prog{stroke:var(--accent);stroke-dasharray:552.9;stroke-dashoffset:552.9;transition:stroke-dashoffset .6s ease,stroke .3s}
+.prog.done{stroke:var(--pos)}
+.punch{
+  position:absolute;inset:11%;border-radius:50%;border:0;cursor:pointer;
+  background:var(--accent);color:var(--accent-ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  font-size:1.25rem;font-weight:750;box-shadow:0 6px 0 rgba(0,0,0,.18);
+  transition:transform .08s,box-shadow .08s;
+}
+.punch:active{transform:translateY(5px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.punch small{font-size:.85rem;font-weight:500;opacity:.8}
+.status{text-align:center;margin:12px 0 0;min-height:2.8em}
+.stats{display:grid;grid-template-columns:1fr 1fr;margin-top:18px;border-top:1px solid var(--line)}
+.stats div{padding:14px 4px;border-bottom:1px solid var(--line)}
+.stats div:nth-child(odd){padding-right:14px;border-right:1px solid var(--line)}
+.stats div:nth-child(even){padding-left:18px}
+.stats span{display:block;color:var(--mute);font-size:.88rem}
+.stats b{font-size:1.5rem;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.note{font-size:.85rem;color:var(--mute);margin-top:10px}
+
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
+.plist li b{font-variant-numeric:tabular-nums}
+.empty{color:var(--mute);margin:8px 0}
+
+/* Histórico */
+.mhead{display:flex;align-items:center;justify-content:space-between;margin:6px 0 10px}
+.mhead h1{font-size:1.25rem;margin:0;text-transform:capitalize}
+.mhead button{font-size:1.4rem}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0}
+.sum span{display:block;color:var(--mute);font-size:.82rem}
+.sum b{font-size:1.15rem;font-variant-numeric:tabular-nums}
+.days{list-style:none;margin:6px 0 0;padding:0}
+.days li{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.days .d{font-weight:700;line-height:1.15}
+.days .d small{display:block;color:var(--mute);font-weight:500;text-transform:capitalize}
+.days .t{font-size:.92rem;font-variant-numeric:tabular-nums;word-break:break-word}
+.days .t em{font-style:normal;color:var(--mute);display:block;font-size:.82rem}
+.days .s{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.days .s small{display:block;color:var(--mute);font-weight:500}
+.days li.dim{opacity:.55}
+.warn{color:var(--neg)}
+
+/* Navegação inferior */
+nav{
+  position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
+  display:flex;padding-bottom:env(safe-area-inset-bottom,0px);
+}
+nav button{flex:1;background:none;border:0;padding:14px 4px;color:var(--mute);font-weight:600;cursor:pointer;border-top:3px solid transparent}
+nav button[aria-current=true]{color:var(--ink);border-top-color:var(--accent)}
+
+/* Ajustes */
+.dayschk{display:flex;gap:6px;flex-wrap:wrap}
+.dayschk label{display:flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid var(--line);border-radius:999px;background:var(--card)}
+.dayschk input{accent-color:var(--accent)}
+
+/* Diálogo de edição */
+dialog{border:0;border-radius:18px;padding:0;width:min(92vw,440px);background:var(--card);color:var(--ink);max-height:88vh}
+dialog::backdrop{background:rgba(5,10,25,.55)}
+.dlg{padding:20px}
+.dlg h3{margin:0 0 12px;font-size:1.1rem;text-transform:capitalize}
+.drow{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.dchk{display:flex;gap:10px;align-items:center;margin:14px 0 8px}
+.dchk input{width:20px;height:20px;accent-color:var(--accent)}
+.dbtns{display:flex;gap:10px;margin-top:16px}
+
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);
+  background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;max-width:90vw;text-align:center;z-index:50}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<!-- Aviso: Firebase ainda não configurado -->
+<main id="setup" class="center" hidden>
+  <h1>Falta configurar o Firebase</h1>
+  <p>Abra o arquivo <code>firebase-config.js</code> e cole os dados do seu projeto Firebase. O passo a passo está no <code>README.md</code>.</p>
+</main>
+
+<!-- Login -->
+<main id="auth" class="center" hidden>
+  <h1>Ponto</h1>
+  <p class="mute">Entre para registrar seu ponto e acompanhar suas horas extras.</p>
+  <label class="f" for="email">E-mail</label>
+  <input id="email" type="email" autocomplete="email" inputmode="email">
+  <label class="f" for="pass">Senha</label>
+  <input id="pass" type="password" autocomplete="current-password">
+  <p id="authErr" class="err" role="alert"></p>
+  <div class="row">
+    <button id="btnLogin" class="btn">Entrar</button>
+    <button id="btnSignup" class="btn alt">Criar conta</button>
+  </div>
+  <div class="row"><button id="btnGoogle" class="btn alt">Entrar com Google</button></div>
+  <p style="text-align:center;margin-top:18px"><button id="btnReset" class="ghost">Esqueci minha senha</button></p>
+</main>
+
+<!-- App -->
+<div id="app" hidden>
+  <div class="wrap">
+
+    <section id="v-hoje">
+      <div class="clockwrap">
+        <div id="date" class="date"></div>
+        <div id="clock" class="clock">--:--:--</div>
+      </div>
+      <div class="ringbox">
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="track" cx="100" cy="100" r="88"/>
+          <circle id="prog" class="prog" cx="100" cy="100" r="88"/>
+        </svg>
+        <button id="punch" class="punch"><span id="punchTitle">Registrar entrada</span><small id="punchSub"></small></button>
+      </div>
+      <p id="status" class="status"></p>
+      <div class="stats">
+        <div><span>Trabalhado hoje</span><b id="sWorked">0h00</b></div>
+        <div><span id="sDayLbl">Saldo de hoje</span><b id="sDay">0h00</b></div>
+        <div><span>Saldo do mês</span><b id="sMonth">0h00</b></div>
+        <div><span>Banco de horas</span><b id="sBank">0h00</b></div>
+      </div>
+      <p class="note">Hoje só entra no saldo do mês e no banco quando passa da jornada.</p>
+      <h2>Registros de hoje</h2>
+      <ul id="todayList" class="plist"></ul>
+    </section>
+
+    <section id="v-hist" hidden>
+      <div class="mhead">
+        <button id="mPrev" class="ghost" aria-label="Mês anterior">‹</button>
+        <h1 id="mTitle"></h1>
+        <button id="mNext" class="ghost" aria-label="Próximo mês">›</button>
+      </div>
+      <div class="sum">
+        <div><span>Trabalhado</span><b id="hWorked"></b></div>
+        <div><span>Previsto</span><b id="hExp"></b></div>
+        <div><span>Saldo</span><b id="hBal"></b></div>
+      </div>
+      <ul id="days" class="days"></ul>
+      <p style="margin-top:18px"><button id="btnCsv" class="btn alt">Exportar o mês (CSV)</button></p>
+      <p class="note">Toque em um dia para corrigir horários, marcar folga/feriado ou adicionar uma observação.</p>
+    </section>
+
+    <section id="v-cfg" hidden>
+      <h2 style="margin-top:8px">Jornada</h2>
+      <label class="f" for="cDaily">Horas por dia de trabalho</label>
+      <input id="cDaily" type="time" value="08:00">
+      <label class="f">Dias de trabalho</label>
+      <div id="cDays" class="dayschk"></div>
+      <label class="f" for="cTol">Tolerância por dia (minutos)</label>
+      <input id="cTol" type="number" min="0" max="60" inputmode="numeric" value="10">
+      <p class="hint">Se a diferença do dia for menor ou igual a isso, o saldo do dia fica zerado. Use 0 para contar tudo.</p>
+      <label class="f" for="cInit">Saldo inicial do banco de horas</label>
+      <input id="cInit" type="text" inputmode="text" placeholder="0:00 ou -2:30" value="0:00">
+      <p class="hint">Horas que você já tinha antes de começar a usar o app. Pode ser negativo.</p>
+      <p style="margin-top:18px"><button id="cSave" class="btn">Salvar ajustes</button></p>
+
+      <h2>Conta</h2>
+      <p id="cUser" class="mute" style="margin:0 0 10px"></p>
+      <button id="btnInstall" class="btn alt" hidden>Instalar no celular</button>
+      <p class="hint" id="iosHint" hidden>No iPhone: toque em Compartilhar e depois em “Adicionar à Tela de Início”.</p>
+      <p style="margin-top:12px"><button id="btnOut" class="btn alt">Sair</button></p>
+    </section>
+
+  </div>
+
+  <nav>
+    <button data-tab="hoje" aria-current="true">Hoje</button>
+    <button data-tab="hist">Histórico</button>
+    <button data-tab="cfg">Ajustes</button>
+  </nav>
+</div>
+
+<!-- Edição de um dia -->
+<dialog id="dlg">
+  <div class="dlg">
+    <h3 id="dTitle"></h3>
+    <div id="dRows"></div>
+    <button id="dAdd" class="btn alt small" type="button">+ Adicionar horário</button>
+    <label class="dchk"><input id="dOff" type="checkbox"> Folga, feriado ou abono (jornada zero)</label>
+    <input id="dNote" type="text" placeholder="Observação (opcional)">
+    <div class="dbtns">
+      <button id="dCancel" class="btn alt" type="button">Cancelar</button>
+      <button id="dSave" class="btn" type="button">Salvar dia</button>
+    </div>
+    <p style="margin:10px 0 0;text-align:center"><button id="dClear" class="ghost" type="button">Apagar todos os registros do dia</button></p>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
