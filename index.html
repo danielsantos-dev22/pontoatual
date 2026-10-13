@@ -128,6 +128,9 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
 .dchk input{width:20px;height:20px;accent-color:var(--accent)}
 .dbtns{display:flex;gap:10px;margin-top:16px}
 
+#lock{position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;padding-top:env(safe-area-inset-top,0px)}
+#lock .center{padding-top:20vh;text-align:center}
+
 #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);
   background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;opacity:0;pointer-events:none;
   transition:opacity .2s,transform .2s;max-width:90vw;text-align:center;z-index:50}
@@ -141,6 +144,16 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
 </style>
 </head>
 <body>
+
+<!-- Tela de bloqueio (rosto ou digital) -->
+<div id="lock" hidden>
+  <div class="center">
+    <h1>Ponto bloqueado</h1>
+    <p class="mute">Confirme com o rosto ou a digital para continuar.</p>
+    <p><button id="lockBtn" class="btn">Desbloquear</button></p>
+    <p style="margin-top:18px"><button id="lockOut" class="ghost">Não consigo desbloquear</button></p>
+  </div>
+</div>
 
 <!-- Aviso: Firebase ainda não configurado -->
 <main id="setup" class="center" hidden>
@@ -231,6 +244,12 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
       <input id="cInit" type="text" inputmode="text" placeholder="0:00 ou -2:30" value="0:00">
       <p class="hint">Horas que você já tinha antes de começar a usar o app. Pode ser negativo.</p>
       <p style="margin-top:18px"><button id="cSave" class="btn">Salvar ajustes</button></p>
+
+      <h2>Segurança</h2>
+      <label class="dchk"><input id="bioLock" type="checkbox"> Bloquear o app com rosto ou digital</label>
+      <label class="dchk"><input id="bioPunch" type="checkbox"> Pedir também a cada batida de ponto</label>
+      <p id="bioNo" class="hint" hidden>Este aparelho ou navegador não oferece rosto ou digital para apps da web.</p>
+      <p class="hint">Vale só neste aparelho. Ao trocar de celular, ative de novo. O app não recebe nem guarda imagem do seu rosto: quem confere é o próprio celular.</p>
 
       <h2>Conta</h2>
       <p id="cUser" class="mute" style="margin:0 0 10px"></p>
