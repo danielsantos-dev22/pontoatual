@@ -1,5 +1,5 @@
 // Service worker: deixa o app abrir sem internet. Os dados offline ficam no cache do Firestore.
-const CACHE = "ponto-v2";
+const CACHE = "ponto-v3";
 const SHELL = ["./", "./index.html", "./app.js", "./firebase-config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png"];
 
