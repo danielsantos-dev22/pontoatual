@@ -200,11 +200,12 @@ function saveDay(k, rec) {
   op.catch((e) => toast("Não foi possível salvar: " + e.message));
 }
 
-$("#punch").onclick = () => {
+$("#punch").onclick = async () => {
+  const t = nowHM(); // hora do toque, antes de pedir a biometria
   const k = todayKey();
+  if (store.get(K_PUNCH) === "1" && !(await verifyBio())) { toast("Biometria não confirmada."); return; }
   const rec = state.days[k] || {};
   const p = [...(rec.punches || [])];
-  const t = nowHM();
   if (p.includes(t)) { toast("Já existe um registro neste minuto."); return; }
   p.push(t); p.sort();
   saveDay(k, { ...rec, punches: p });
@@ -318,6 +319,7 @@ function fillCfg() {
   $("#cInit").value = fmtSigned(c.initial);
   document.querySelectorAll("#cDays input").forEach((i) => (i.checked = c.workDays.includes(+i.value)));
   $("#cUser").textContent = state.user?.email || "";
+  syncBio();
 }
 $("#cSave").onclick = () => {
   const daily = $("#cDaily").value;
@@ -382,6 +384,92 @@ $("#btnReset").onclick = () => {
   if (!e) { $("#authErr").textContent = "Digite seu e-mail acima para receber o link."; return; }
   sendPasswordResetEmail(auth, e).then(() => { $("#authErr").textContent = ""; toast("Link enviado para o seu e-mail"); }).catch(authFail);
 };
+
+/* ---------- biometria (rosto ou digital do celular) ---------- */
+// Trava local: o celular confere o rosto/digital (WebAuthn). Nada biométrico sai do aparelho.
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+  del: (k) => { try { localStorage.removeItem(k); } catch {} }
+};
+const K_CRED = "ponto.cred", K_PUNCH = "ponto.bioPunch";
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
+let verifying = false;
+
+async function verifyBio() {
+  const id = store.get(K_CRED);
+  if (!id) return true;
+  if (verifying) return false;
+  verifying = true;
+  try {
+    await navigator.credentials.get({ publicKey: {
+      challenge: rnd(32), timeout: 60000, userVerification: "required",
+      allowCredentials: [{ type: "public-key", id: unb64(id), transports: ["internal"] }]
+    } });
+    return true;
+  } catch { return false; }
+  finally { verifying = false; }
+}
+
+async function tryUnlock() {
+  if (await verifyBio()) $("#lock").hidden = true;
+}
+function lockNow() {
+  if (!store.get(K_CRED)) return;
+  $("#lock").hidden = false;
+  tryUnlock();
+}
+$("#lockBtn").onclick = tryUnlock;
+$("#lockOut").onclick = () => {
+  if (!confirm("Sair da conta e remover o bloqueio deste aparelho? Você vai precisar entrar de novo com e-mail e senha.")) return;
+  store.del(K_CRED); store.del(K_PUNCH);
+  $("#lock").hidden = true;
+  if (auth) signOut(auth);
+};
+
+let hiddenAt = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (hiddenAt && Date.now() - hiddenAt > 60000) lockNow(); // voltou depois de mais de 1 minuto
+});
+
+function syncBio() {
+  const has = !!store.get(K_CRED);
+  $("#bioLock").checked = has;
+  $("#bioPunch").checked = has && store.get(K_PUNCH) === "1";
+  $("#bioPunch").disabled = !has;
+}
+$("#bioLock").onchange = async (e) => {
+  const box = e.target;
+  if (box.checked) {
+    try {
+      const cred = await navigator.credentials.create({ publicKey: {
+        challenge: rnd(32), timeout: 60000,
+        rp: { name: "Ponto" },
+        user: { id: rnd(16), name: state.user?.email || "usuario", displayName: "Ponto" },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "discouraged" }
+      } });
+      store.set(K_CRED, b64(cred.rawId));
+      toast("Bloqueio ativado");
+    } catch { toast("Não foi possível ativar neste aparelho."); }
+  } else {
+    if (!(await verifyBio())) { toast("Biometria não confirmada."); syncBio(); return; }
+    store.del(K_CRED); store.del(K_PUNCH);
+    toast("Bloqueio desativado");
+  }
+  syncBio();
+};
+$("#bioPunch").onchange = (e) => { e.target.checked ? store.set(K_PUNCH, "1") : store.del(K_PUNCH); };
+
+(window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable?.() ?? Promise.resolve(false)).then((ok) => {
+  $("#bioNo").hidden = ok;
+  if (!ok && !store.get(K_CRED)) $("#bioLock").disabled = true;
+}).catch(() => {});
+
+lockNow(); // ao abrir o app
 
 /* ---------- instalar ---------- */
 let deferredInstall;
