@@ -40,7 +40,7 @@ h2{font-size:1rem;margin:28px 0 8px;font-weight:650}
 .btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .btn.small{width:auto;padding:9px 14px;font-size:.92rem}
 .ghost{background:none;border:0;color:var(--mute);padding:8px 10px;cursor:pointer;font-size:1rem}
-input[type=text],input[type=email],input[type=password],input[type=time],input[type=number],textarea{
+input[type=text],input[type=email],input[type=password],input[type=time],input[type=date],input[type=number],select,textarea{
   width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);
 }
 input:focus-visible,button:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
@@ -132,6 +132,11 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
   background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;opacity:0;pointer-events:none;
   transition:opacity .2s,transform .2s;max-width:90vw;text-align:center;z-index:50}
 #toast.on{opacity:1;transform:translate(-50%,0)}
+#toast.act{pointer-events:auto;display:flex;gap:14px;align-items:center}
+#toast button{background:none;border:0;color:inherit;font-weight:750;text-decoration:underline;padding:4px 6px;cursor:pointer}
+.bank{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--line)}
+.bank span{color:var(--mute)}
+.bank b{font-size:1.25rem;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 </style>
 </head>
@@ -186,6 +191,7 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
       <p class="note">Hoje só entra no saldo do mês e no banco quando passa da jornada.</p>
       <h2>Registros de hoje</h2>
       <ul id="todayList" class="plist"></ul>
+      <p style="margin:10px 0 0"><button id="btnUndo" class="ghost" hidden>Desfazer última batida</button></p>
     </section>
 
     <section id="v-hist" hidden>
@@ -199,6 +205,14 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
         <div><span>Previsto</span><b id="hExp"></b></div>
         <div><span>Saldo</span><b id="hBal"></b></div>
       </div>
+      <div class="bank"><span>Banco de horas atual</span><b id="hBank"></b></div>
+      <p style="margin:14px 0 0"><button id="btnAdj" class="btn alt">Lançar baixa no banco</button></p>
+      <div id="adjWrap" hidden>
+        <h2>Baixas e ajustes do mês</h2>
+        <ul id="adjList" class="days"></ul>
+        <p class="note">Baixas e créditos mudam o banco de horas, mas não o saldo do mês.</p>
+      </div>
+      <h2>Dias</h2>
       <ul id="days" class="days"></ul>
       <p style="margin-top:18px"><button id="btnCsv" class="btn alt">Exportar o mês (CSV)</button></p>
       <p class="note">Toque em um dia para corrigir horários, marcar folga/feriado ou adicionar uma observação.</p>
@@ -247,6 +261,28 @@ dialog::backdrop{background:rgba(5,10,25,.55)}
       <button id="dSave" class="btn" type="button">Salvar dia</button>
     </div>
     <p style="margin:10px 0 0;text-align:center"><button id="dClear" class="ghost" type="button">Apagar todos os registros do dia</button></p>
+  </div>
+</dialog>
+
+<dialog id="adlg">
+  <div class="dlg">
+    <h3 id="aTitle"></h3>
+    <label class="f" for="aType">Tipo</label>
+    <select id="aType">
+      <option value="baixa">Baixa (folga compensada ou horas pagas)</option>
+      <option value="credito">Crédito (somar horas ao banco)</option>
+    </select>
+    <label class="f" for="aTime">Horas</label>
+    <input id="aTime" type="text" inputmode="text" placeholder="8:00">
+    <label class="f" for="aDate">Data</label>
+    <input id="aDate" type="date">
+    <label class="f" for="aNote">Observação (opcional)</label>
+    <input id="aNote" type="text" placeholder="Ex.: folga do dia 20">
+    <div class="dbtns">
+      <button id="aCancel" class="btn alt" type="button">Cancelar</button>
+      <button id="aSave" class="btn" type="button">Salvar</button>
+    </div>
+    <p style="margin:10px 0 0;text-align:center"><button id="aDel" class="ghost" type="button" hidden>Excluir lançamento</button></p>
   </div>
 </dialog>
 
