@@ -35,16 +35,26 @@ const longDate = (k) => new Date(k + "T00:00:00").toLocaleDateString("pt-BR", { 
 const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 let toastTimer;
-function toast(msg) {
-  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
+function toast(msg, actionLabel, onAction) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.toggle("act", !!actionLabel);
+  if (actionLabel) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = actionLabel;
+    b.onclick = () => { t.classList.remove("on"); onAction(); };
+    t.appendChild(b);
+  }
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), actionLabel ? 8000 : 2400);
 }
 
 /* ---------- estado ---------- */
 const DEF = { dailyMin: 480, workDays: [1, 2, 3, 4, 5], tol: 10, initial: 0 };
 const now0 = new Date();
 const state = {
-  user: null, cfg: { ...DEF }, days: {},
+  user: null, cfg: { ...DEF }, days: {}, adj: {}, adjId: null,
   ym: { y: now0.getFullYear(), m: now0.getMonth() },
   tab: "hoje", editKey: null, draft: null
 };
@@ -80,6 +90,9 @@ function totals(prefix) {
   }
   return { worked, expected, diff };
 }
+
+const adjTotal = () => Object.values(state.adj).reduce((s, a) => s + (a.minutes || 0), 0);
+const bankNow = () => state.cfg.initial + totals("").diff + adjTotal();
 
 /* ---------- telas ---------- */
 function show(id) {
@@ -130,10 +143,10 @@ function renderHoje() {
   const sd = $("#sDay"); sd.textContent = dur(Math.abs(dayDiff)); sd.className = cls(dayDiff);
   const mo = totals(`${now0.getFullYear()}-${pad(now0.getMonth() + 1)}`);
   const sm = $("#sMonth"); sm.textContent = dur(mo.diff, true); sm.className = cls(mo.diff);
-  const all = totals("");
-  const bank = state.cfg.initial + all.diff;
+  const bank = bankNow();
   const sb = $("#sBank"); sb.textContent = dur(bank, true); sb.className = cls(bank);
 
+  $("#btnUndo").hidden = !n;
   $("#todayList").innerHTML = n
     ? r.p.map((t, i) => `<li><span>${i % 2 ? "Saída" : "Entrada"}</span><b>${t}</b></li>`).join("")
     : `<li class="empty" style="border:0">Sem registros. Toque no botão para marcar sua entrada.</li>`;
@@ -147,6 +160,16 @@ function renderHist() {
   $("#hWorked").textContent = dur(t.worked);
   $("#hExp").textContent = dur(t.expected);
   const hb = $("#hBal"); hb.textContent = dur(t.diff, true); hb.className = cls(t.diff);
+  const bank = bankNow();
+  const hk = $("#hBank"); hk.textContent = dur(bank, true); hk.className = cls(bank);
+
+  const adjs = Object.entries(state.adj).filter(([, a]) => a.date?.startsWith(prefix)).sort((a, b) => b[1].date.localeCompare(a[1].date));
+  $("#adjWrap").hidden = !adjs.length;
+  $("#adjList").innerHTML = adjs.map(([id, a]) => `<li data-a="${id}">
+      <div class="d">${a.date.slice(8)}<small>${WD[new Date(a.date + "T00:00:00").getDay()]}</small></div>
+      <div class="t">${a.minutes < 0 ? "Baixa" : "Crédito"}${a.note ? `<em>${esc(a.note)}</em>` : ""}</div>
+      <div class="s ${cls(a.minutes)}">${dur(a.minutes, true)}</div>
+    </li>`).join("");
 
   const today = todayKey();
   const last = new Date(y, m + 1, 0).getDate();
@@ -186,7 +209,21 @@ $("#punch").onclick = () => {
   p.push(t); p.sort();
   saveDay(k, { ...rec, punches: p });
   navigator.vibrate?.(30);
-  toast(`${p.length % 2 ? "Entrada" : "Saída"} registrada às ${t}`);
+  toast(`${p.length % 2 ? "Entrada" : "Saída"} registrada às ${t}`, "Desfazer", () => { removePunch(k, t); toast("Batida desfeita"); });
+};
+
+function removePunch(k, t) {
+  const rec = state.days[k] || {};
+  saveDay(k, { ...rec, punches: (rec.punches || []).filter((x) => x !== t) });
+}
+$("#btnUndo").onclick = () => {
+  const k = todayKey();
+  const p = [...(state.days[k]?.punches || [])].sort();
+  if (!p.length) return;
+  const t = p[p.length - 1];
+  if (!confirm(`Desfazer a batida das ${t}?`)) return;
+  removePunch(k, t);
+  toast("Batida desfeita");
 };
 
 document.querySelectorAll("nav button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
@@ -234,6 +271,44 @@ $("#dClear").onclick = () => {
   $("#dlg").close();
 };
 
+/* ---------- baixas e créditos no banco de horas ---------- */
+function openAdj(id) {
+  const a = id ? state.adj[id] : null;
+  state.adjId = id || null;
+  $("#aTitle").textContent = id ? "Editar lançamento" : "Lançar no banco de horas";
+  $("#aType").value = a && a.minutes > 0 ? "credito" : "baixa";
+  $("#aTime").value = a ? fmtSigned(Math.abs(a.minutes)) : "";
+  $("#aDate").value = a?.date || todayKey();
+  $("#aNote").value = a?.note || "";
+  $("#aDel").hidden = !id;
+  $("#adlg").showModal();
+}
+$("#btnAdj").onclick = () => openAdj(null);
+$("#adjList").onclick = (e) => { const li = e.target.closest("li[data-a]"); if (li) openAdj(li.dataset.a); };
+$("#aCancel").onclick = () => $("#adlg").close();
+$("#aSave").onclick = () => {
+  let s = ($("#aTime").value || "").trim().toLowerCase().replace("h", ":");
+  if (/^\d+$/.test(s)) s += ":00";
+  if (/^\d+:$/.test(s)) s += "00";
+  const v = parseSigned(s);
+  if (v === null || v <= 0) return toast("Informe as horas, como 8:00.");
+  const date = $("#aDate").value;
+  if (!date) return toast("Escolha a data.");
+  const minutes = $("#aType").value === "baixa" ? -v : v;
+  const id = state.adjId || Date.now().toString(36);
+  setDoc(doc(db, `users/${state.user.uid}/adjustments/${id}`), { date, minutes, note: $("#aNote").value.trim() })
+    .catch((e) => toast("Não foi possível salvar: " + e.message));
+  $("#adlg").close();
+  const [y, m] = date.split("-").map(Number);
+  state.ym = { y, m: m - 1 };
+  toast("Lançamento salvo");
+};
+$("#aDel").onclick = () => {
+  if (!confirm("Excluir este lançamento?")) return;
+  deleteDoc(doc(db, `users/${state.user.uid}/adjustments/${state.adjId}`)).catch((e) => toast("Erro: " + e.message));
+  $("#adlg").close();
+};
+
 /* ---------- ajustes ---------- */
 $("#cDays").innerHTML = WD.map((n, i) => `<label><input type="checkbox" value="${i}"> ${n}</label>`).join("");
 function fillCfg() {
@@ -275,6 +350,10 @@ $("#btnCsv").onclick = () => {
     rows.push([`${pad(d)}/${pad(m + 1)}/${y}`, WD[new Date(k + "T00:00:00").getDay()], r.p.join(" "),
       dur(r.worked), dur(r.expected), r.incomplete ? "incompleto" : dur(r.diff, true), (rec?.off ? "Folga/abono " : "") + (rec?.note || "")]);
   }
+  Object.values(state.adj).filter((a) => a.date?.startsWith(prefix)).sort((a, b) => a.date.localeCompare(b.date)).forEach((a) => {
+    const [yy, mm, dd] = a.date.split("-");
+    rows.push([`${dd}/${mm}/${yy}`, "", "", "", "", dur(a.minutes, true), `${a.minutes < 0 ? "Baixa" : "Crédito"} no banco ${a.note || ""}`.trim()]);
+  });
   const csv = "\uFEFF" + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -322,13 +401,17 @@ if (!firebaseConfig.apiKey || String(firebaseConfig.apiKey).startsWith("COLE")) 
   onAuthStateChanged(auth, (user) => {
     unsubs.forEach((u) => u()); unsubs = [];
     state.user = user;
-    if (!user) { state.days = {}; show("#auth"); return; }
+    if (!user) { state.days = {}; state.adj = {}; show("#auth"); return; }
     show("#app");
     setTab(state.tab);
     unsubs.push(onSnapshot(doc(db, `users/${user.uid}/settings/config`), (s) => {
       state.cfg = { ...DEF, ...(s.data() || {}) };
       if (state.tab === "cfg") fillCfg();
       render();
+    }));
+    unsubs.push(onSnapshot(collection(db, `users/${user.uid}/adjustments`), (s) => {
+      const a = {}; s.forEach((x) => (a[x.id] = x.data()));
+      state.adj = a; render();
     }));
     unsubs.push(onSnapshot(collection(db, `users/${user.uid}/days`), (s) => {
       const d = {}; s.forEach((x) => (d[x.id] = x.data()));
